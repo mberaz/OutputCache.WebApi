@@ -11,6 +11,7 @@ namespace OutputCache.OutputCaching
     {
         private readonly RequestDelegate _next;
         private readonly IOutputCachingService _cache;
+        private const string outputCacheKeyHeaderName = "x-output-cache-key";
 
         public OutputCacheMiddleware(RequestDelegate next, IOutputCachingService cache)
         {
@@ -55,7 +56,7 @@ namespace OutputCache.OutputCaching
 
                     AddEtagToResponse(context, bytes);
                     var cacheKey = AddResponseToCache(context, bytes, outputCacheAttribute);
-                    context.Response.Headers["x-output-cache-key"] = cacheKey;
+                    context.Response.Headers[outputCacheKeyHeaderName] = cacheKey;
                 }
 
                 if (ms.Length > 0)
@@ -82,7 +83,7 @@ namespace OutputCache.OutputCaching
                 }
             }
 
-            context.Response.Headers["x-output-cache-key"] = value.CacheKey;
+            context.Response.Headers[outputCacheKeyHeaderName] = value.CacheKey;
 
             // Serve a conditional GET request when if-none-match header exist
             if (context.Request.Headers.TryGetValue(HeaderNames.IfNoneMatch, out StringValues etag) && context.Response.Headers[HeaderNames.ETag] == etag)
@@ -98,10 +99,9 @@ namespace OutputCache.OutputCaching
 
         private string AddResponseToCache(HttpContext context, byte[] bytes, OutputCacheAttribute outputCacheAttribute)
         {
-            TimeSpan? customTimeSpan = outputCacheAttribute.DurationInSeconds == null ? null :
-                TimeSpan.FromSeconds((double)outputCacheAttribute.DurationInSeconds);
-
-            return _cache.Set(context, new OutputCacheResponse(bytes, context.Response.Headers), customTimeSpan);
+            return _cache.Set(context, 
+                new OutputCacheResponse(bytes, context.Response.Headers),
+                outputCacheAttribute.DurationInTimeSpan());
         }
 
         private static void AddEtagToResponse(HttpContext context, byte[] bytes)
@@ -123,7 +123,6 @@ namespace OutputCache.OutputCaching
             byte[] buffer = algo.ComputeHash(bytes.Concat(encoding).ToArray());
             return $"\"{WebEncoders.Base64UrlEncode(buffer)}\"";
         }
-
 
         public static bool DoesRequestQualify(HttpContext context)
         {

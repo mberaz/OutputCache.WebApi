@@ -8,7 +8,7 @@ namespace OutputCache.Controllers
     public class WeatherForecastController : ControllerBase
     {
         private readonly IOutputCachingRevoker _outputCachingRevoker;
-        private static readonly string[] Summaries = new[]
+        private static readonly string[] Summaries = 
         {
             "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
         };
@@ -24,15 +24,7 @@ namespace OutputCache.Controllers
         {
             return Summaries[id] + "_" + temp;
         }
-
-
-        [HttpGet("get22/{id}/{temp}")]
-
-        public string Get22(int id, int temp)
-        {
-            return Summaries[id] + "_" + temp;
-        }
-
+ 
         [HttpGet("remove/{id}/{temp}")]
         public string Remove(int id, int temp)
         {
@@ -40,6 +32,13 @@ namespace OutputCache.Controllers
             _outputCachingRevoker.Remove(key);
 
             return key;
+        }
+
+        [HttpGet("random/{id}/{temp}")]
+
+        public string Random(int id, int temp)
+        {
+            return Summaries[id] + "_" + temp;
         }
     }
 }

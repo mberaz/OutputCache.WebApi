@@ -23,13 +23,10 @@ namespace OutputCache.OutputCaching
 
         public string Set(HttpContext context, OutputCacheResponse response, TimeSpan? timeSpan)
         {
-            var key = _cacheKeysProvider.CreateKey(context.Request);
-            var offset = timeSpan ?? _cacheOptions.CacheDuration;
-            response.CacheKey = key;
-            _cache.Set(key, response, absoluteExpirationRelativeToNow: offset);
-            return key;
+            response.CacheKey = _cacheKeysProvider.CreateKey(context.Request);
+            _cache.Set(response.CacheKey, response, absoluteExpirationRelativeToNow: timeSpan ?? _cacheOptions.CacheDuration);
+            return response.CacheKey;
         }
-
 
         public void Clear()
         {
