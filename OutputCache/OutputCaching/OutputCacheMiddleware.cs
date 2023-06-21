@@ -11,7 +11,7 @@ namespace OutputCache.OutputCaching
     {
         private readonly RequestDelegate _next;
         private readonly IOutputCachingService _cache;
-        private const string outputCacheKeyHeaderName = "x-output-cache-key";
+        private const string OutputCacheKeyHeaderName = "x-output-cache-key";
 
         public OutputCacheMiddleware(RequestDelegate next, IOutputCachingService cache)
         {
@@ -23,12 +23,12 @@ namespace OutputCache.OutputCaching
         {
             var endpoint = context.Features.Get<IEndpointFeature>().Endpoint;
 
-            var outputCacheAttribute = endpoint.Metadata.GetMetadata<OutputCacheAttribute>();
+            var outputCacheAttribute = endpoint?.Metadata.GetMetadata<OutputCacheAttribute>();
             if (outputCacheAttribute == null || !DoesRequestQualify(context))
             {
                 await _next(context);
             }
-            else if (_cache.TryGetValue(context, out OutputCacheResponse response))
+            else if (_cache.TryGetValue(context.Request, out var response))
             {
                 await ServeFromCacheAsync(context, response);
             }
@@ -55,8 +55,8 @@ namespace OutputCache.OutputCaching
                     var bytes = ms.ToArray();
 
                     AddEtagToResponse(context, bytes);
-                    var cacheKey = AddResponseToCache(context, bytes, outputCacheAttribute);
-                    context.Response.Headers[outputCacheKeyHeaderName] = cacheKey;
+                    var cacheKey = _cache.Set(context.Request, new OutputCacheResponse(bytes, context.Response.Headers), outputCacheAttribute.DurationInTimeSpan());
+                    context.Response.Headers[OutputCacheKeyHeaderName] = cacheKey;
                 }
 
                 if (ms.Length > 0)
@@ -83,7 +83,7 @@ namespace OutputCache.OutputCaching
                 }
             }
 
-            context.Response.Headers[outputCacheKeyHeaderName] = value.CacheKey;
+            context.Response.Headers[OutputCacheKeyHeaderName] = value.CacheKey;
 
             // Serve a conditional GET request when if-none-match header exist
             if (context.Request.Headers.TryGetValue(HeaderNames.IfNoneMatch, out StringValues etag) && context.Response.Headers[HeaderNames.ETag] == etag)
@@ -97,12 +97,7 @@ namespace OutputCache.OutputCaching
             }
         }
 
-        private string AddResponseToCache(HttpContext context, byte[] bytes, OutputCacheAttribute outputCacheAttribute)
-        {
-            return _cache.Set(context, 
-                new OutputCacheResponse(bytes, context.Response.Headers),
-                outputCacheAttribute.DurationInTimeSpan());
-        }
+
 
         private static void AddEtagToResponse(HttpContext context, byte[] bytes)
         {

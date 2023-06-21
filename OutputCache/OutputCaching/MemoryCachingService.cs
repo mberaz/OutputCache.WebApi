@@ -5,25 +5,22 @@ namespace OutputCache.OutputCaching
     internal class MemoryCachingService : IOutputCachingService
     {
         private IMemoryCache _cache;
-        private readonly IOutputCacheKeysProvider _cacheKeysProvider;
         private readonly OutputCacheOptions _cacheOptions;
 
-        public MemoryCachingService(
-            IOutputCacheKeysProvider cacheKeysProvider, OutputCacheOptions cacheOptions)
+        public MemoryCachingService(OutputCacheOptions cacheOptions)
         {
             _cache = new MemoryCache(new MemoryCacheOptions());
-            _cacheKeysProvider = cacheKeysProvider;
             _cacheOptions = cacheOptions;
         }
 
-        public bool TryGetValue(HttpContext context, out OutputCacheResponse response)
+        public bool TryGetValue(HttpRequest request, out OutputCacheResponse response)
         {
-            return _cache.TryGetValue(_cacheKeysProvider.CreateKey(context.Request), out response);
+            return _cache.TryGetValue(OutputCacheKeyCreator.CreateKey(request), out response);
         }
 
-        public string Set(HttpContext context, OutputCacheResponse response, TimeSpan? timeSpan)
+        public string Set(HttpRequest request, OutputCacheResponse response, TimeSpan? timeSpan)
         {
-            response.CacheKey = _cacheKeysProvider.CreateKey(context.Request);
+            response.CacheKey = OutputCacheKeyCreator.CreateKey(request);
             _cache.Set(response.CacheKey, response, absoluteExpirationRelativeToNow: timeSpan ?? _cacheOptions.CacheDuration);
             return response.CacheKey;
         }

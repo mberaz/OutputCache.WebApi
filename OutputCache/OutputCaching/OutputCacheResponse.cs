@@ -7,7 +7,7 @@
             Body = body;
             Headers = new Dictionary<string, string>();
 
-            foreach (string name in headers.Keys)
+            foreach (var name in headers.Keys)
             {
                 Headers.Add(name, headers[name]);
             }
@@ -15,6 +15,6 @@
         public byte[] Body { get; set; }
         public Dictionary<string, string> Headers { get; }
 
-        public string CacheKey { get; set; }
+        public string? CacheKey { get; set; }
     }
 }

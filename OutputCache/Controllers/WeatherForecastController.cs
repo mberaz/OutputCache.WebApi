@@ -28,7 +28,7 @@ namespace OutputCache.Controllers
         [HttpGet("remove/{id}/{temp}")]
         public string Remove(int id, int temp)
         {
-            var key = _outputCachingRevoker.CreateRequestCacheKey(HttpMethod.Get, $"{this.GetControllerName()}/get/{id}/{temp}");
+            var key = _outputCachingRevoker.CreateRequestCacheKey($"WeatherForecast/get/{id}/{temp}");
             _outputCachingRevoker.Remove(key);
 
             return key;

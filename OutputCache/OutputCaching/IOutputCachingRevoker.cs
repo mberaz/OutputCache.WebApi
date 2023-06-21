@@ -3,7 +3,6 @@
     public interface IOutputCachingRevoker
     {
         void Remove(string cacheKey);
-        string CreateRequestCacheKey(HttpMethod httpMethod, string path);
-        string CreateRequestCacheKey(string httpMethod, string path);
+        string CreateRequestCacheKey( string path, Dictionary<string,string>? queryStringParams=null);
     }
 }

@@ -14,16 +14,16 @@
             _outputCachingService.Remove(cacheKey);
         }
 
-        public string CreateRequestCacheKey(HttpMethod httpMethod, string path)
+        public string CreateRequestCacheKey(string path, Dictionary<string, string>? queryStringParams = null)
         {
-            return CreateRequestCacheKey(httpMethod.ToString(), path);
+            var key = path.TrimStart('/');
+
+            if (queryStringParams != null)
+            {
+                key = queryStringParams.Keys.OrderBy(o => o)
+                    .Aggregate(key, (current, qaKey) => current + ("_" + qaKey + "=" + queryStringParams[qaKey]));
+            }
+            return key.ToLower();
         }
-
-        public string CreateRequestCacheKey(string httpMethod, string path)
-        {
-            return $"{httpMethod}_{path.TrimStart('/')}".ToLower();
-        }
-
-
     }
 }
