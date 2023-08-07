@@ -1,9 +1,4 @@
-﻿using System.Security.Cryptography;
-using Microsoft.AspNetCore.WebUtilities;
-using Microsoft.Extensions.Primitives;
-using Microsoft.Net.Http.Headers;
-using System.Text;
-using Microsoft.AspNetCore.Http.Features;
+﻿using Microsoft.AspNetCore.Http.Features;
 
 namespace OutputCache.OutputCaching
 {
@@ -24,21 +19,21 @@ namespace OutputCache.OutputCaching
             var endpoint = context.Features.Get<IEndpointFeature>().Endpoint;
 
             var outputCacheAttribute = endpoint?.Metadata.GetMetadata<OutputCacheAttribute>();
-            if (outputCacheAttribute == null || !DoesRequestQualify(context))
+            if (outputCacheAttribute == null || context.Request.Method != HttpMethods.Get)
             {
                 await _next(context);
             }
             else if (_cache.TryGetValue(context.Request, out var response))
             {
-                await ServeFromCacheAsync(context, response);
+                await GetFromCache(context, response);
             }
             else
             {
-                await ServeFromMvcAndCacheAsync(context, outputCacheAttribute);
+                await InvokeAndSaveResponse(context, outputCacheAttribute);
             }
         }
 
-        private async Task ServeFromMvcAndCacheAsync(HttpContext context, OutputCacheAttribute outputCacheAttribute)
+        private async Task InvokeAndSaveResponse(HttpContext context, OutputCacheAttribute outputCacheAttribute)
         {
             HttpResponse response = context.Response;
             Stream originalStream = response.Body;
@@ -50,19 +45,15 @@ namespace OutputCache.OutputCaching
 
                 await _next(context);
 
-                if (DoesResponseQualify(context))
+                if (ShouldSaveResponse(context))
                 {
-                    var bytes = ms.ToArray();
-
-                    AddEtagToResponse(context, bytes);
-                    var cacheKey = _cache.Set(context.Request, new OutputCacheResponse(bytes, context.Response.Headers), outputCacheAttribute.DurationInTimeSpan());
+                    var cacheKey = _cache.Set(context.Request, new OutputCacheResponse(ms.ToArray(), context.Response.Headers), outputCacheAttribute.DurationInTimeSpan());
                     context.Response.Headers[OutputCacheKeyHeaderName] = cacheKey;
                 }
 
                 if (ms.Length > 0)
                 {
                     ms.Seek(0, SeekOrigin.Begin);
-
                     await ms.CopyToAsync(originalStream);
                 }
             }
@@ -72,7 +63,7 @@ namespace OutputCache.OutputCaching
             }
         }
 
-        private static async Task ServeFromCacheAsync(HttpContext context, OutputCacheResponse value)
+        private static async Task GetFromCache(HttpContext context, OutputCacheResponse value)
         {
             // Copy over the HTTP headers
             foreach (string name in value.Headers.Keys)
@@ -82,57 +73,24 @@ namespace OutputCache.OutputCaching
                     context.Response.Headers[name] = value.Headers[name];
                 }
             }
-
+            //add x-output-cache-key header
             context.Response.Headers[OutputCacheKeyHeaderName] = value.CacheKey;
 
-            // Serve a conditional GET request when if-none-match header exist
-            if (context.Request.Headers.TryGetValue(HeaderNames.IfNoneMatch, out StringValues etag) && context.Response.Headers[HeaderNames.ETag] == etag)
+            //write the body
+            await context.Response.Body.WriteAsync(value.Body, 0, value.Body.Length);
+        }
+
+        public static bool ShouldSaveResponse(HttpContext context)
+        {
+            var goodResponses = new List<int>
             {
-                context.Response.ContentLength = 0;
-                context.Response.StatusCode = StatusCodes.Status304NotModified;
-            }
-            else
-            {
-                await context.Response.Body.WriteAsync(value.Body, 0, value.Body.Length);
-            }
-        }
+                StatusCodes.Status200OK,
+                StatusCodes.Status202Accepted,
+                StatusCodes.Status201Created,
+                StatusCodes.Status204NoContent
+            };
 
-
-
-        private static void AddEtagToResponse(HttpContext context, byte[] bytes)
-        {
-            if (context.Response.StatusCode != StatusCodes.Status200OK)
-                return;
-
-            if (context.Response.Headers.ContainsKey(HeaderNames.ETag))
-                return;
-
-            context.Response.Headers[HeaderNames.ETag] = CalculateChecksum(bytes, context.Request);
-        }
-
-        private static string CalculateChecksum(byte[] bytes, HttpRequest request)
-        {
-            byte[] encoding = Encoding.UTF8.GetBytes(request.Headers[HeaderNames.AcceptEncoding].ToString());
-
-            using var algo = SHA1.Create();
-            byte[] buffer = algo.ComputeHash(bytes.Concat(encoding).ToArray());
-            return $"\"{WebEncoders.Base64UrlEncode(buffer)}\"";
-        }
-
-        public static bool DoesRequestQualify(HttpContext context)
-        {
-            if (context.Request.Method != HttpMethods.Get) return false;
-            //if (context.User.Identity.IsAuthenticated) return false;
-
-            return true;
-        }
-
-        public static bool DoesResponseQualify(HttpContext context)
-        {
-            if (context.Response.StatusCode != StatusCodes.Status200OK) return false;
-            if (context.Response.Headers.ContainsKey(HeaderNames.SetCookie)) return false;
-
-            return true;
+            return goodResponses.Contains(context.Response.StatusCode);
         }
     }
 }
