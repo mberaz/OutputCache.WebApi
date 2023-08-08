@@ -4,12 +4,17 @@
     {
         public static string CreateKey(HttpRequest request)
         {
-            var key = $"{(request.Path.ToString()).TrimStart('/')}";
+            return CreateRequestCacheKey(request.Path.ToString(), request.Query.ToDictionary(k => k.ToString(), o => o.ToString()));
+        }
 
-            if (request.Query.Any())
+        public static string CreateRequestCacheKey(string path, Dictionary<string, string>? queryStringParams = null)
+        {
+            var key = path.TrimStart('/');
+
+            if (queryStringParams != null)
             {
-                key = request.Query.Keys.OrderBy(o => o)
-                    .Aggregate(key, (current, qaKey) => current + ("_" + qaKey + "=" + request.Query[qaKey]));
+                key = queryStringParams.Keys.OrderBy(o => o)
+                    .Aggregate(key, (current, qaKey) => current + ("_" + qaKey + "=" + queryStringParams[qaKey]));
             }
             return key.ToLower();
         }

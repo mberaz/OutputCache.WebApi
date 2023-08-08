@@ -12,9 +12,9 @@
                 Headers.Add(name, headers[name]);
             }
         }
+
         public byte[] Body { get; set; }
         public Dictionary<string, string> Headers { get; }
-
         public string? CacheKey { get; set; }
     }
 }

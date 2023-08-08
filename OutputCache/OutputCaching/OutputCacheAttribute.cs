@@ -13,16 +13,12 @@ namespace OutputCache.OutputCaching
         {
             DurationInSeconds = durationInSeconds;
         }
+
         public int? DurationInSeconds { get; set; }
 
         public TimeSpan? DurationInTimeSpan()
         {
             return DurationInSeconds == null ? null : TimeSpan.FromSeconds((double)DurationInSeconds);
-        }
-
-        public override void OnActionExecuting(ActionExecutingContext context)
-        {
-
         }
     }
 }
