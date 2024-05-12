@@ -4,7 +4,7 @@ namespace OutputCache.OutputCaching
 {
     internal class MemoryCachingService : IOutputCachingService
     {
-        private IMemoryCache _cache;
+        private readonly IMemoryCache _cache;
         private readonly OutputCacheOptions _cacheOptions;
 
         public MemoryCachingService(OutputCacheOptions cacheOptions)
@@ -27,8 +27,7 @@ namespace OutputCache.OutputCaching
 
         public void Clear()
         {
-            var old = Interlocked.Exchange(ref _cache, new MemoryCache(new MemoryCacheOptions()));
-            old?.Dispose();
+            _cache?.Dispose();
         }
 
         public void Remove(string cacheKey)

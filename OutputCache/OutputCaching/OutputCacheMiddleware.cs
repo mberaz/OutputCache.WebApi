@@ -8,6 +8,14 @@ namespace OutputCache.OutputCaching
         private readonly IOutputCachingService _cache;
         private const string OutputCacheKeyHeaderName = "x-output-cache-key";
 
+        private readonly List<int> _goodResponses = new()
+        {
+            StatusCodes.Status200OK,
+            StatusCodes.Status201Created,
+            StatusCodes.Status202Accepted,
+            StatusCodes.Status204NoContent
+        };
+
         public OutputCacheMiddleware(RequestDelegate next, IOutputCachingService cache)
         {
             _next = next;
@@ -16,7 +24,7 @@ namespace OutputCache.OutputCaching
 
         public async Task InvokeAsync(HttpContext context)
         {
-            var endpoint = context.Features.Get<IEndpointFeature>().Endpoint;
+            var endpoint = context.Features.Get<IEndpointFeature>()?.Endpoint;
 
             var outputCacheAttribute = endpoint?.Metadata.GetMetadata<OutputCacheAttribute>();
             if (outputCacheAttribute == null || context.Request.Method != HttpMethods.Get)
@@ -33,6 +41,23 @@ namespace OutputCache.OutputCaching
             }
         }
 
+        private static async Task GetFromCache(HttpContext context, OutputCacheResponse cacheResponse)
+        {
+            // Copy over the HTTP headers
+            foreach (var name in cacheResponse.Headers.Keys)
+            {
+                if (!context.Response.Headers.ContainsKey(name))
+                {
+                    context.Response.Headers[name] = cacheResponse.Headers[name];
+                }
+            }
+            //add x-output-cache-key header
+            context.Response.Headers[OutputCacheKeyHeaderName] = cacheResponse.CacheKey;
+
+            //write the body
+            await context.Response.Body.WriteAsync(cacheResponse.Body, 0, cacheResponse.Body.Length);
+        }
+
         private async Task InvokeAndSaveResponse(HttpContext context, OutputCacheAttribute outputCacheAttribute)
         {
             HttpResponse response = context.Response;
@@ -42,7 +67,6 @@ namespace OutputCache.OutputCaching
             {
                 using var ms = new MemoryStream();
                 response.Body = ms;
-
                 await _next(context);
 
                 if (ShouldSaveResponse(context))
@@ -63,34 +87,9 @@ namespace OutputCache.OutputCaching
             }
         }
 
-        private static async Task GetFromCache(HttpContext context, OutputCacheResponse value)
+        public bool ShouldSaveResponse(HttpContext context)
         {
-            // Copy over the HTTP headers
-            foreach (string name in value.Headers.Keys)
-            {
-                if (!context.Response.Headers.ContainsKey(name))
-                {
-                    context.Response.Headers[name] = value.Headers[name];
-                }
-            }
-            //add x-output-cache-key header
-            context.Response.Headers[OutputCacheKeyHeaderName] = value.CacheKey;
-
-            //write the body
-            await context.Response.Body.WriteAsync(value.Body, 0, value.Body.Length);
-        }
-
-        public static bool ShouldSaveResponse(HttpContext context)
-        {
-            var goodResponses = new List<int>
-            {
-                StatusCodes.Status200OK,
-                StatusCodes.Status202Accepted,
-                StatusCodes.Status201Created,
-                StatusCodes.Status204NoContent
-            };
-
-            return goodResponses.Contains(context.Response.StatusCode);
+            return _goodResponses.Contains(context.Response.StatusCode);
         }
     }
 }
